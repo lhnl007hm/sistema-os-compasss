@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Login - Sistema OS</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-light">
+    <div class="container mt-5">
+      <div class="row justify-content-center">
+        <div class="col-md-4">
+          <div class="card shadow">
+            <div class="card-body">
+              <h3 class="text-center mb-4">🔐 Sistema de OS</h3>
+
+              {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %} {% for category, message in messages %}
+              <div
+                class="alert alert-{{ 'danger' if category == 'error' else 'success' }}"
+              >
+                {{ message }}
+              </div>
+              {% endfor %} {% endif %} {% endwith %}
+
+              <form method="POST">
+                <div class="mb-3">
+                  <input
+                    type="email"
+                    name="email"
+                    class="form-control"
+                    placeholder="Email"
+                    required
+                  />
+                </div>
+                <div class="mb-3">
+                  <input
+                    type="password"
+                    name="senha"
+                    class="form-control"
+                    placeholder="Senha"
+                    required
+                  />
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                  Entrar
+                </button>
+              </form>
+
+              <hr />
+              <small class="text-muted"
+                >Admin: admin@exemplo.com / admin123</small
+              ><br />
+              <small class="text-muted"
+                >Filial: filial1@exemplo.com / 123456</small
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

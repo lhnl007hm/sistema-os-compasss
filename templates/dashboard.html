@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Dashboard - Sistema OS</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <nav class="navbar navbar-dark bg-dark">
+      <div class="container">
+        <span class="navbar-brand"
+          >📋 OS System - {{ current_user.nome }} ({{ current_user.unidade
+          }})</span
+        >
+        <div>
+          <a href="/nova-os" class="btn btn-success">+ Nova OS</a>
+          <a href="/metricas" class="btn btn-info">📊 Métricas</a>
+          <a href="/logout" class="btn btn-danger">Sair</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container mt-4">
+      <h2>Ordens de Serviço</h2>
+
+      {% with messages = get_flashed_messages(with_categories=true) %} {% if
+      messages %} {% for category, message in messages %}
+      <div
+        class="alert alert-{{ 'danger' if category == 'error' else 'success' }}"
+      >
+        {{ message }}
+      </div>
+      {% endfor %} {% endif %} {% endwith %}
+
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Nº OS</th>
+              <th>Título</th>
+              <th>Sistema</th>
+              <th>Atividade</th>
+              <th>Status</th>
+              <th>Início</th>
+              <th>Fim</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for os in ordens %}
+            <tr>
+              <td><strong>{{ os.numero_os }}</strong></td>
+              <td>{{ os.titulo }}</td>
+              <td>{{ os.sistema }}</td>
+              <td>{{ os.atividade }}</td>
+              <td>
+                <span
+                  class="badge {% if os.status == 'À Fazer' %}bg-warning {% elif os.status == 'Em Andamento' %}bg-primary {% else %}bg-success{% endif %}"
+                >
+                  {{ os.status }}
+                </span>
+              </td>
+              <td>{{ os.data_inicio.strftime('%d/%m/%Y') }}</td>
+              <td>{{ os.data_fim.strftime('%d/%m/%Y') }}</td>
+              <td>
+                <a href="/editar-os/{{ os.id }}" class="btn btn-sm btn-warning"
+                  >✏️</a
+                >
+                <a
+                  href="/excluir-os/{{ os.id }}"
+                  class="btn btn-sm btn-danger"
+                  onclick="return confirm('Excluir OS {{ os.numero_os }}?')"
+                  >🗑️</a
+                >
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>
