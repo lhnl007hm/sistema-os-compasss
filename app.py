@@ -7,7 +7,7 @@ import os
 
 # ==================== CONFIGURAÇÃO INICIAL ====================
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sua-chave-secreta-aqui-123'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'sua-chave-secreta-aqui-123')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 db = SQLAlchemy(app)
 
@@ -64,8 +64,11 @@ def gerar_numero_os(atividade, sistema):
     ).order_by(OrdemServico.numero_os.desc()).first()
     
     if ultima_os:
-        # Extrai o número (ex: MPSDAI005 -> 5)
-        numero = int(ultima_os.numero_os[len(base):]) + 1
+        try:
+            # Extrai o número (ex: MPSDAI005 -> 5)
+            numero = int(ultima_os.numero_os[len(base):]) + 1
+        except:
+            numero = 1
     else:
         numero = 1
     
@@ -114,39 +117,52 @@ def dashboard():
 @login_required
 def nova_os():
     if request.method == 'POST':
-        # Pega dados do formulário
-        atividade = request.form.get('atividade')
-        sistema = request.form.get('sistema')
-        
-        # Gera o número mágico
-        numero_os = gerar_numero_os(atividade, sistema)
-        
-        # Cria a OS
-        nova = OrdemServico(
-            numero_os=numero_os,
-            titulo=request.form.get('titulo'),
-            descricao=request.form.get('descricao'),
-            sistema=sistema,
-            atividade=atividade,
-            status=request.form.get('status'),
-            data_inicio=datetime.strptime(request.form.get('data_inicio'), '%Y-%m-%d'),
-            data_fim=datetime.strptime(request.form.get('data_fim'), '%Y-%m-%d'),
-            unidade=current_user.unidade,
-            criado_por=current_user.email
-        )
-        
-        db.session.add(nova)
-        db.session.commit()
-        
-        flash(f'OS {numero_os} criada com sucesso!', 'success')
-        return redirect(url_for('dashboard'))
+        try:
+            # Pega dados do formulário
+            atividade = request.form.get('atividade')
+            sistema = request.form.get('sistema')
+            
+            # Gera o número mágico
+            numero_os = gerar_numero_os(atividade, sistema)
+            
+            # Converte datas
+            data_inicio = datetime.strptime(request.form.get('data_inicio'), '%Y-%m-%d').date()
+            data_fim = datetime.strptime(request.form.get('data_fim'), '%Y-%m-%d').date()
+            
+            # Cria a OS
+            nova = OrdemServico(
+                numero_os=numero_os,
+                titulo=request.form.get('titulo'),
+                descricao=request.form.get('descricao'),
+                sistema=sistema,
+                atividade=atividade,
+                status=request.form.get('status'),
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                unidade=current_user.unidade,
+                criado_por=current_user.email
+            )
+            
+            db.session.add(nova)
+            db.session.commit()
+            
+            flash(f'OS {numero_os} criada com sucesso!', 'success')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao criar OS: {str(e)}', 'error')
+            return render_template('nova_os.html')
     
     return render_template('nova_os.html')
 
 @app.route('/editar-os/<int:id>', methods=['GET', 'POST'])
 @login_required
 def editar_os(id):
-    os = OrdemServico.query.get_or_404(id)
+    try:
+        os = OrdemServico.query.get_or_404(id)
+    except:
+        flash('OS não encontrada', 'error')
+        return redirect(url_for('dashboard'))
     
     # Verifica se o usuário tem permissão (mesma unidade ou admin)
     if not current_user.is_admin and os.unidade != current_user.unidade:
@@ -154,15 +170,40 @@ def editar_os(id):
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        os.titulo = request.form.get('titulo')
-        os.descricao = request.form.get('descricao')
-        os.status = request.form.get('status')
-        os.data_inicio = datetime.strptime(request.form.get('data_inicio'), '%Y-%m-%d')
-        os.data_fim = datetime.strptime(request.form.get('data_fim'), '%Y-%m-%d')
-        
-        db.session.commit()
-        flash('OS atualizada com sucesso!', 'success')
-        return redirect(url_for('dashboard'))
+        try:
+            # Pega dados do formulário
+            titulo = request.form.get('titulo')
+            descricao = request.form.get('descricao')
+            status = request.form.get('status')
+            data_inicio_str = request.form.get('data_inicio')
+            data_fim_str = request.form.get('data_fim')
+            
+            # Validação básica
+            if not all([titulo, descricao, status, data_inicio_str, data_fim_str]):
+                flash('Todos os campos são obrigatórios', 'error')
+                return render_template('editar_os.html', os=os)
+            
+            # Converte datas
+            from datetime import datetime
+            data_inicio = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+            data_fim = datetime.strptime(data_fim_str, '%Y-%m-%d').date()
+            
+            # Atualiza OS
+            os.titulo = titulo
+            os.descricao = descricao
+            os.status = status
+            os.data_inicio = data_inicio
+            os.data_fim = data_fim
+            
+            db.session.commit()
+            flash('OS atualizada com sucesso!', 'success')
+            return redirect(url_for('dashboard'))
+            
+        except ValueError as e:
+            flash(f'Erro no formato das datas: {str(e)}', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao atualizar OS: {str(e)}', 'error')
     
     return render_template('editar_os.html', os=os)
 
@@ -176,50 +217,63 @@ def excluir_os(id):
         flash('Você não tem permissão para excluir esta OS', 'error')
         return redirect(url_for('dashboard'))
     
-    db.session.delete(os)
-    db.session.commit()
-    flash('OS excluída com sucesso!', 'success')
+    try:
+        db.session.delete(os)
+        db.session.commit()
+        flash('OS excluída com sucesso!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao excluir: {str(e)}', 'error')
+    
     return redirect(url_for('dashboard'))
 
 @app.route('/metricas')
 @login_required
 def metricas():
-    return render_template('metricas.html')
+    return render_template('metricas.html', datetime=datetime)
 
 @app.route('/api/dados-metricas')
 @login_required
 def api_dados_metricas():
     """Retorna JSON para os gráficos do dashboard"""
-    from sqlalchemy import func, extract
+    from sqlalchemy import func
     
-    # Filtra por unidade
-    query = OrdemServico.query
-    if not current_user.is_admin:
-        query = query.filter_by(unidade=current_user.unidade)
-    
-    # Dados para gráfico de Status
-    status_counts = query.with_entities(
-        OrdemServico.status, 
-        func.count(OrdemServico.id)
-    ).group_by(OrdemServico.status).all()
-    
-    # Dados por Sistema
-    sistema_counts = query.with_entities(
-        OrdemServico.sistema,
-        func.count(OrdemServico.id)
-    ).group_by(OrdemServico.sistema).all()
-    
-    # Dados por Mês (últimos 6 meses)
-    mes_counts = query.with_entities(
-        func.strftime('%Y-%m', OrdemServico.data_criacao).label('mes'),
-        func.count(OrdemServico.id)
-    ).group_by('mes').order_by('mes').limit(6).all()
-    
-    return jsonify({
-        'status': dict(status_counts),
-        'sistemas': dict(sistema_counts),
-        'mensal': [{'mes': m[0], 'total': m[1]} for m in mes_counts]
-    })
+    try:
+        # Filtra por unidade
+        query = OrdemServico.query
+        if not current_user.is_admin:
+            query = query.filter_by(unidade=current_user.unidade)
+        
+        # Dados para gráfico de Status
+        status_counts = query.with_entities(
+            OrdemServico.status, 
+            func.count(OrdemServico.id)
+        ).group_by(OrdemServico.status).all()
+        
+        # Dados por Sistema
+        sistema_counts = query.with_entities(
+            OrdemServico.sistema,
+            func.count(OrdemServico.id)
+        ).group_by(OrdemServico.sistema).all()
+        
+        # Dados por Mês (últimos 6 meses)
+        mes_counts = query.with_entities(
+            func.strftime('%Y-%m', OrdemServico.data_criacao).label('mes'),
+            func.count(OrdemServico.id)
+        ).group_by('mes').order_by('mes').limit(6).all()
+        
+        return jsonify({
+            'status': dict(status_counts),
+            'sistemas': dict(sistema_counts),
+            'mensal': [{'mes': m[0], 'total': m[1]} for m in mes_counts]
+        })
+    except Exception as e:
+        return jsonify({
+            'status': {},
+            'sistemas': {},
+            'mensal': [],
+            'error': str(e)
+        })
 
 # ==================== INICIALIZAÇÃO DO BANCO ====================
 def init_db():
@@ -250,6 +304,11 @@ def init_db():
             print("✅ Banco de dados inicializado!")
             print("👤 Admin: admin@exemplo.com / admin123")
             print("👤 Usuário: filial1@exemplo.com / 123456")
+
+#if __name__ == '__main__':
+ #   init_db()
+  #  port = int(os.environ.get('PORT', 5000))
+   # app.run(debug=False, host='0.0.0.0', port=port)
 
 if __name__ == '__main__':
     with app.app_context():
