@@ -252,7 +252,32 @@ def init_db():
             print("👤 Usuário: filial1@exemplo.com / 123456")
 
 if __name__ == '__main__':
-    init_db()
-    # Alterar esta linha para produção:
+    with app.app_context():
+        db.create_all()
+        
+        # Cria usuário admin se não existir
+        if not Usuario.query.filter_by(email='admin@exemplo.com').first():
+            admin = Usuario(
+                email='admin@exemplo.com',
+                senha_hash=generate_password_hash('admin123'),
+                nome='Administrador',
+                unidade='Matriz',
+                is_admin=True
+            )
+            db.session.add(admin)
+            
+            user = Usuario(
+                email='filial1@exemplo.com',
+                senha_hash=generate_password_hash('123456'),
+                nome='Usuário Filial',
+                unidade='Filial SP',
+                is_admin=False
+            )
+            db.session.add(user)
+            db.session.commit()
+            print("✅ Banco de dados inicializado!")
+    
+    # IMPORTANTE: Para Render
+    import os
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
